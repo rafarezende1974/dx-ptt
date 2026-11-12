@@ -1,14 +1,14 @@
 # ============================================================
-# DX PTT - workflow de build do APK (Fase 0)
+# DX PTT - workflow de build dos APKs (celular + relogio)
 #
-# COMO USAR: no site do GitHub, crie o arquivo
+# COMO USAR: no site do GitHub, edite o arquivo
 #   .github/workflows/build-apk.yml
-# e cole TODO o conteudo deste arquivo nele.
+# e cole TODO o conteudo deste arquivo nele, substituindo o anterior.
 # (Este arquivo .txt fica na raiz do projeto de proposito:
 #  o push via API nao tem permissao de Workflows.)
 #
 # Igual ao workflow do JPG Diet (verde): SDK 36 e Gradle 8.11.1.
-# Sem NDK/CMake: a Fase 0 nao tem codigo nativo.
+# Sem NDK/CMake: o DX PTT nao tem codigo nativo.
 # ============================================================
 
 name: Build APK
@@ -47,11 +47,17 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Build debug APK
+      - name: Build debug APKs
         run: gradle assembleDebug --console=plain
 
-      - name: Upload do APK
+      - name: Upload do APK (celular)
         uses: actions/upload-artifact@v4
         with:
-          name: dx-ptt-fase0-apk
+          name: dx-ptt-phone-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload do APK (relogio)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dx-ptt-watch-apk
+          path: wear/build/outputs/apk/debug/wear-debug.apk

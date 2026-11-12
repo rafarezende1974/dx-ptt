@@ -21,8 +21,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 
 /**
- * DX PTT - Fase 0 (teste no celular, sem relogio ainda).
+ * DX PTT - app do celular: botao de teste + companheiro do relogio.
  *
+ * O botao desta tela continua funcionando como na Fase 0 (liga/desliga,
+ * com encerrar pela notificacao). Alem disso, o PttMessageService
+ * recebe "apertou/soltou" do Galaxy Watch 7 pela Data Layer e repassa
+ * para o PttSender, que envia os broadcasts de PTT para o Zello.
  * v0.1.1: botao liga/desliga. O DOWN faz o proprio Zello vir para a
  * frente (comportamento documentado), entao "segurar para falar" nao
  * funciona num app de teste no celular: na v0.1.0 um UP automatico no
@@ -37,7 +41,8 @@ import androidx.core.content.ContextCompat
  *
  * Se a Fase 0 passar, o mesmo envio vira o app companheiro do celular
  * e o botao passa a morar no Galaxy Watch 7 (Wear OS), mandando
- * "apertou/soltou" para o celular pela Data Layer.
+ * "apertou/soltou" para o celular pela Data Layer. (Fase 0 aprovada
+ * em 12/11/2026: voz ouvida pela equipe. O relogio e o modulo wear.)
  */
 class MainActivity : ComponentActivity() {
 
@@ -61,7 +66,7 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(buildUi())
         if (PttSender.logLines().isEmpty()) {
-            PttSender.log("DX PTT Fase 0 pronto. Build 0.1.1-fase0.")
+            PttSender.log("DX PTT pronto. Build 0.2.0 (celular + relógio).")
             PttSender.log("Toque para falar; toque de novo (ou use a notificação) para encerrar.")
         }
         requestNotificationPermissionIfNeeded()
@@ -105,7 +110,7 @@ class MainActivity : ComponentActivity() {
         }
 
         val title = TextView(this).apply {
-            text = "DX PTT — Teste Fase 0"
+            text = "DX PTT — Celular"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.parseColor("#F2F5F9"))

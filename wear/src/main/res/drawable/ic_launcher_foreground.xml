@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Botao PTT verde com ondas de voz brancas. Icone provisorio;
+         o icone final do app sera desenhado com o Rafael. -->
+    <path
+        android:fillColor="#2FBF71"
+        android:pathData="M54,18 C74,18 90,34 90,54 C90,74 74,90 54,90 C34,90 18,74 18,54 C18,34 34,18 54,18 Z" />
+    <path
+        android:fillColor="#F2F5F9"
+        android:pathData="M39,44 L47,44 L47,64 L39,64 Z" />
+    <path
+        android:fillColor="#F2F5F9"
+        android:pathData="M50,35 L58,35 L58,73 L50,73 Z" />
+    <path
+        android:fillColor="#F2F5F9"
+        android:pathData="M61,47 L69,47 L69,61 L61,61 Z" />
+</vector>

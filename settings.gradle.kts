@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "DxPtt"
-include(":app")
+include(":app", ":wear")

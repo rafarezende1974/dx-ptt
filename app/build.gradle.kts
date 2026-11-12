@@ -11,8 +11,8 @@ android {
         applicationId = "br.com.dxlabs.dxptt"
         minSdk = 29
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1-fase0"
+        versionCode = 3
+        versionName = "0.2.0"
     }
 
     buildTypes {
@@ -38,4 +38,6 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-ktx:1.9.2")
+    // Data Layer do Wear OS: o PttMessageService recebe apertou/soltou do relogio.
+    implementation("com.google.android.gms:play-services-wearable:18.1.0")
 }

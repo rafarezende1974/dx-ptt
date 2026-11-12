@@ -36,6 +36,21 @@
             android:name=".PttActionReceiver"
             android:exported="false" />
 
+        <!-- Companheiro do relogio: recebe "apertou/soltou" pela Data
+             Layer e repassa para o PttSender. O Google Play services
+             acorda este servico quando a mensagem chega. -->
+        <service
+            android:name=".PttMessageService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/ptt"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
+
     </application>
 
 </manifest>
