@@ -1,0 +1,57 @@
+# ============================================================
+# DX PTT - workflow de build do APK (Fase 0)
+#
+# COMO USAR: no site do GitHub, crie o arquivo
+#   .github/workflows/build-apk.yml
+# e cole TODO o conteudo deste arquivo nele.
+# (Este arquivo .txt fica na raiz do projeto de proposito:
+#  o push via API nao tem permissao de Workflows.)
+#
+# Igual ao workflow do JPG Diet (verde): SDK 36 e Gradle 8.11.1.
+# Sem NDK/CMake: a Fase 0 nao tem codigo nativo.
+# ============================================================
+
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Instalar Android SDK 36
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Setup Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.11.1'
+
+      - name: Build debug APK
+        run: gradle assembleDebug --console=plain
+
+      - name: Upload do APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: dx-ptt-fase0-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
