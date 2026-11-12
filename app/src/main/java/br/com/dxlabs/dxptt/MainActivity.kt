@@ -1,14 +1,14 @@
 package br.com.dxlabs.dxptt
 
-import android.content.Intent
+import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.HapticFeedbackConstants
-import android.view.MotionEvent
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
@@ -17,17 +17,19 @@ import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import androidx.activity.ComponentActivity
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 
 /**
  * DX PTT - Fase 0 (teste no celular, sem relogio ainda).
  *
- * Um botao grande que envia os broadcasts de PTT documentados pela Zello
- * (Zello Hardware Partner Technical Integration):
- *   apertar -> com.zello.ptt.down
- *   soltar  -> com.zello.ptt.up
+ * v0.1.1: botao liga/desliga. O DOWN faz o proprio Zello vir para a
+ * frente (comportamento documentado), entao "segurar para falar" nao
+ * funciona num app de teste no celular: na v0.1.0 um UP automatico no
+ * onPause encerrava a transmissao no mesmo segundo. Aqui o toque
+ * comeca a transmissao e ela so termina com outro toque, com o botao
+ * "Encerrar" da notificacao ou apos 120s. O envio mora no PttSender,
+ * fora da Activity, de proposito.
  *
  * O Zello transmite para o contato/canal que estiver selecionado nele.
  * Quem captura o audio e o Zello, pelo microfone do celular ou do fone.
@@ -45,29 +47,52 @@ class MainActivity : ComponentActivity() {
     private lateinit var logText: TextView
     private lateinit var modeSwitch: Switch
 
-    private var transmitting = false
-    private var activePointerId = MotionEvent.INVALID_POINTER_ID
-    private var pressCount = 0
-
-    private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale("pt", "BR"))
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (!granted) {
+                PttSender.log(
+                    "Notificações negadas: para encerrar, volte ao app e toque no botão."
+                )
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(buildUi())
+        if (PttSender.logLines().isEmpty()) {
+            PttSender.log("DX PTT Fase 0 pronto. Build 0.1.1-fase0.")
+            PttSender.log("Toque para falar; toque de novo (ou use a notificação) para encerrar.")
+        }
+        requestNotificationPermissionIfNeeded()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        PttSender.onLog = { refreshLog() }
+        PttSender.onStateChanged = { refreshState() }
         refreshZelloStatus()
-        log("DX PTT Fase 0 pronto. Build 0.1.0-fase0.")
-        log("Aperte e segure o botao, fale, solte para enviar.")
+        refreshState()
+        refreshLog()
     }
 
     override fun onPause() {
-        // Nunca deixar o PTT preso: se o app sair da frente no meio
-        // de uma transmissao, solta o botao sozinho.
-        if (transmitting) {
-            keyUp()
-            log("Transmissao encerrada porque o app saiu da frente.")
-        }
+        PttSender.onLog = null
+        PttSender.onStateChanged = null
+        // De proposito, SEM encerrar aqui: o DOWN traz o Zello para a
+        // frente e esta Activity pausa no meio da transmissao. Encerrar
+        // no onPause foi o bug da v0.1.0.
         super.onPause()
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun buildUi(): ScrollView {
@@ -89,8 +114,10 @@ class MainActivity : ComponentActivity() {
 
         val howto = TextView(this).apply {
             text = "1. Abra o Zello e selecione o canal.\n" +
-                "2. Volte aqui, segure o botão, fale e solte.\n" +
-                "A voz sai do microfone do celular ou do fone."
+                "2. Volte aqui e toque no botão: o Zello abre transmitindo.\n" +
+                "3. Fale e encerre pelo botão da notificação ou voltando\n" +
+                "aqui e tocando de novo. A voz sai do microfone do\n" +
+                "celular ou do fone. Após 120s, encerra sozinho."
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
             setTextColor(Color.parseColor("#9AA7B8"))
             setPadding(0, dp(12), 0, 0)
@@ -115,48 +142,36 @@ class MainActivity : ComponentActivity() {
         root.addView(statusText)
 
         pttButton = Button(this).apply {
-            text = "SEGURE PARA FALAR"
+            text = "TOQUE PARA FALAR"
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f)
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             setBackgroundColor(Color.parseColor("#2FBF71"))
-            contentDescription = "Botão push-to-talk. Segure para falar, solte para enviar."
+            contentDescription = "Botão push-to-talk. Toque para começar a falar, toque de novo para enviar."
             layoutParams = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 dp(200)
             )
         }
-        pttButton.setOnTouchListener { view, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    activePointerId = event.getPointerId(0)
-                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                    keyDown()
-                    true
-                }
-                MotionEvent.ACTION_UP,
-                MotionEvent.ACTION_CANCEL,
-                MotionEvent.ACTION_POINTER_UP -> {
-                    if (event.getPointerId(event.actionIndex) == activePointerId) {
-                        activePointerId = MotionEvent.INVALID_POINTER_ID
-                        view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                        keyUp()
-                    }
-                    true
-                }
-                else -> true
+        pttButton.setOnClickListener { view ->
+            view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            if (PttSender.isTransmitting) {
+                PttSender.keyUp(this)
+            } else {
+                PttSender.keyDown(this)
             }
         }
         root.addView(pttButton)
 
         modeSwitch = Switch(this).apply {
             text = "Broadcast explícito para o pacote do Zello"
-            isChecked = true
+            isChecked = PttSender.explicitMode
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
             setTextColor(Color.parseColor("#9AA7B8"))
             setPadding(0, dp(20), 0, 0)
             setOnCheckedChangeListener { _, checked ->
-                log(
+                PttSender.explicitMode = checked
+                PttSender.log(
                     if (checked) {
                         "Modo: broadcast explícito para o pacote do Zello."
                     } else {
@@ -185,81 +200,33 @@ class MainActivity : ComponentActivity() {
         return ScrollView(this).apply { addView(root) }
     }
 
-    private fun keyDown() {
-        if (transmitting) return
-        transmitting = true
-        pressCount++
-        pttButton.text = "TRANSMITINDO — SOLTE PARA ENVIAR"
-        pttButton.setBackgroundColor(Color.parseColor("#E5484D"))
-        statusText.text = "TRANSMITINDO (toque $pressCount)"
-        statusText.setTextColor(Color.parseColor("#E5484D"))
-        sendPtt(down = true)
-    }
-
-    private fun keyUp() {
-        if (!transmitting) return
-        transmitting = false
-        pttButton.text = "SEGURE PARA FALAR"
-        pttButton.setBackgroundColor(Color.parseColor("#2FBF71"))
-        statusText.text = "Parado"
-        statusText.setTextColor(Color.parseColor("#9AA7B8"))
-        sendPtt(down = false)
-    }
-
-    private fun sendPtt(down: Boolean) {
-        val action = if (down) "com.zello.ptt.down" else "com.zello.ptt.up"
-        val intent = Intent(action)
-        val target = if (modeSwitch.isChecked) installedZelloPackage() else null
-        if (target != null) intent.setPackage(target)
-        try {
-            sendBroadcast(intent)
-            log(
-                (if (down) "DOWN" else "UP") +
-                    " enviado: $action" +
-                    if (target != null) " -> $target" else " (implícito)"
-            )
-        } catch (e: Exception) {
-            log("ERRO ao enviar $action: ${e.message}")
+    private fun refreshState() {
+        if (PttSender.isTransmitting) {
+            pttButton.text = "TRANSMITINDO — TOQUE PARA ENCERRAR"
+            pttButton.setBackgroundColor(Color.parseColor("#E5484D"))
+            statusText.text = "TRANSMITINDO (toque ${PttSender.pressCount})"
+            statusText.setTextColor(Color.parseColor("#E5484D"))
+        } else {
+            pttButton.text = "TOQUE PARA FALAR"
+            pttButton.setBackgroundColor(Color.parseColor("#2FBF71"))
+            statusText.text = "Parado"
+            statusText.setTextColor(Color.parseColor("#9AA7B8"))
         }
-    }
-
-    /** Pacote do Zello instalado: o universal atual ou o legado do Work. */
-    private fun installedZelloPackage(): String? {
-        for (pkg in listOf("com.loudtalks", "net.loudtalks")) {
-            try {
-                @Suppress("DEPRECATION")
-                packageManager.getPackageInfo(pkg, 0)
-                return pkg
-            } catch (e: PackageManager.NameNotFoundException) {
-                // tenta o proximo pacote
-            }
-        }
-        return null
     }
 
     private fun refreshZelloStatus() {
-        val pkg = installedZelloPackage()
+        val pkg = PttSender.installedZelloPackage(this)
         zelloText.text = if (pkg != null) {
-            val version = try {
-                @Suppress("DEPRECATION")
-                packageManager.getPackageInfo(pkg, 0).versionName
-            } catch (e: PackageManager.NameNotFoundException) {
-                "?"
-            }
-            "Zello instalado: SIM ($pkg, versão $version)"
+            "Zello instalado: SIM ($pkg, versão ${PttSender.zelloVersion(this) ?: "?"})"
         } else {
             "Zello instalado: NÃO ENCONTRADO neste aparelho"
         }
         if (pkg == null) {
-            log("Atenção: nenhum pacote do Zello foi encontrado. Confira se o Zello está instalado.")
+            PttSender.log("Atenção: nenhum pacote do Zello foi encontrado. Confira se o Zello está instalado.")
         }
     }
 
-    private fun log(message: String) {
-        val stamp = timeFormat.format(Date())
-        val lines = (logText.text.toString() + "\n$stamp  $message")
-            .lines()
-            .takeLast(40)
-        logText.text = lines.joinToString("\n").trimStart()
+    private fun refreshLog() {
+        logText.text = PttSender.logLines().joinToString("\n")
     }
 }
